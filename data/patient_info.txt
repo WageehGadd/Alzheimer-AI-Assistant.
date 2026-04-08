@@ -1,0 +1,8 @@
+Patient Name: Mahmoud.
+Age: 75 years old.
+Residence: Hadayek El Assema, Cairo.
+Children: A daughter named Sara, and a son named Ahmed.
+Family visits: Sara visits every Friday evening. Ahmed lives abroad but calls every Sunday.
+Medical conditions: Early-stage Alzheimer's, Hypertension.
+Medications: Donepezil 10mg every morning, Amlodipine 5mg every evening.
+Favorite memories: Working as a teacher, and listening to Om Kalthoum.
