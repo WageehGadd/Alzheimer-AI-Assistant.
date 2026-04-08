@@ -16,9 +16,7 @@ router = APIRouter()
 
 @router.post("/reminders", response_model=ReminderResponse)
 async def create_new_reminder(request: ReminderRequest):
-    """Create a new reminder for a patient."""
     try:
-        # Use LLM to extract task and time from natural language
         from app.services.chat_agent import llm
         import json
         
@@ -34,25 +32,20 @@ async def create_new_reminder(request: ReminderRequest):
         
         extraction_response = llm.invoke(extraction_prompt)
         
-        # Parse the LLM response to get task and time
         try:
             extracted_data = json.loads(extraction_response.content)
             task = extracted_data.get("task", request.message)
             time_str = extracted_data.get("time", "")
         except:
-            # Fallback: simple parsing
             task = request.message
             time_str = datetime.now().strftime('%H:%M')
         
-        # Convert time string to datetime
         if ":" in time_str:
             today = datetime.now().date()
             remind_time = datetime.combine(today, datetime.strptime(time_str, '%H:%M').time())
         else:
-            # Default to 1 hour from now
             remind_time = datetime.now() + timedelta(hours=1)
         
-        # Create reminder in database
         reminder_data = ReminderCreate(
             patient_id=request.patient_id,
             task_description=task,
@@ -61,7 +54,6 @@ async def create_new_reminder(request: ReminderRequest):
         
         created_reminder = create_reminder(reminder_data)
         
-        # Ensure the response has the correct ID format
         response_dict = created_reminder.dict()
         response_dict['id'] = str(created_reminder.id) if created_reminder.id else None
         
@@ -73,7 +65,6 @@ async def create_new_reminder(request: ReminderRequest):
 
 @router.get("/reminders/{patient_id}", response_model=List[ReminderResponse])
 async def get_reminders_for_patient(patient_id: str):
-    """Get all pending reminders for a patient."""
     try:
         reminders = get_pending_reminders(patient_id)
         return reminders
@@ -83,7 +74,6 @@ async def get_reminders_for_patient(patient_id: str):
 
 @router.get("/reminders/{patient_id}/all", response_model=List[ReminderResponse])
 async def get_all_reminders_for_patient(patient_id: str):
-    """Get all reminders (including completed) for a patient."""
     try:
         reminders = get_all_reminders(patient_id)
         return reminders
@@ -93,7 +83,6 @@ async def get_all_reminders_for_patient(patient_id: str):
 
 @router.put("/reminders/{reminder_id}/complete")
 async def complete_reminder(reminder_id: str):
-    """Mark a reminder as completed."""
     try:
         success = mark_reminder_completed(reminder_id)
         if success:
@@ -106,7 +95,6 @@ async def complete_reminder(reminder_id: str):
 
 @router.delete("/reminders/{reminder_id}")
 async def delete_reminder_endpoint(reminder_id: str):
-    """Delete a reminder."""
     try:
         success = delete_reminder(reminder_id)
         if success:

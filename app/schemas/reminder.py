@@ -19,8 +19,8 @@ class PyObjectId(ObjectId):
         field_schema.update(type="string")
 
 class ReminderRequest(BaseModel):
-    patient_id: str = Field(..., description="Patient ID")
-    message: str = Field(..., description="Natural language reminder request")
+    patient_id: str = Field(...)
+    message: str = Field(...)
     
 class ReminderResponse(BaseModel):
     id: Optional[str] = Field(default=None, alias="_id")

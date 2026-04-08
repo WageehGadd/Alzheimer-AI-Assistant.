@@ -5,23 +5,19 @@ from pymongo import MongoClient
 from bson import ObjectId
 from app.schemas.reminder import ReminderResponse, ReminderCreate
 
-# --- DB CONFIG ---
 _MONGO_URI = os.getenv("MONGO_URI")
 _DB_NAME = "alzheimer_app"
 _COLLECTION_NAME = "reminders"
 
 def get_mongo_client():
-    """Get MongoDB client connection."""
     return MongoClient(_MONGO_URI)
 
 def get_reminders_collection():
-    """Get reminders collection."""
     client = get_mongo_client()
     db = client[_DB_NAME]
     return db[_COLLECTION_NAME]
 
 def create_reminder(reminder_data: ReminderCreate) -> ReminderResponse:
-    """Create a new reminder in MongoDB."""
     collection = get_reminders_collection()
     
     reminder_doc = {
@@ -34,13 +30,11 @@ def create_reminder(reminder_data: ReminderCreate) -> ReminderResponse:
     
     result = collection.insert_one(reminder_doc)
     
-    # Convert ObjectId to string for response
     reminder_doc["_id"] = str(result.inserted_id)
     
     return ReminderResponse(**reminder_doc)
 
 def get_pending_reminders(patient_id: str) -> List[ReminderResponse]:
-    """Get all pending reminders for a patient."""
     collection = get_reminders_collection()
     
     reminders = collection.find({
@@ -52,7 +46,6 @@ def get_pending_reminders(patient_id: str) -> List[ReminderResponse]:
     return [ReminderResponse(**reminder) for reminder in reminders]
 
 def get_all_reminders(patient_id: str) -> List[ReminderResponse]:
-    """Get all reminders for a patient (including completed)."""
     collection = get_reminders_collection()
     
     reminders = collection.find({
@@ -62,7 +55,6 @@ def get_all_reminders(patient_id: str) -> List[ReminderResponse]:
     return [ReminderResponse(**reminder) for reminder in reminders]
 
 def mark_reminder_completed(reminder_id: str) -> bool:
-    """Mark a reminder as completed."""
     collection = get_reminders_collection()
     
     try:
@@ -76,7 +68,6 @@ def mark_reminder_completed(reminder_id: str) -> bool:
         return False
 
 def get_due_reminders() -> List[ReminderResponse]:
-    """Get all reminders that are due (time has passed and not completed)."""
     collection = get_reminders_collection()
     
     reminders = collection.find({
@@ -87,7 +78,6 @@ def get_due_reminders() -> List[ReminderResponse]:
     return [ReminderResponse(**reminder) for reminder in reminders]
 
 def delete_reminder(reminder_id: str) -> bool:
-    """Delete a reminder."""
     collection = get_reminders_collection()
     
     try:

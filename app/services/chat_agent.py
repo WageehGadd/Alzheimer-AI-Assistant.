@@ -23,12 +23,10 @@ vectorstore = Chroma(persist_directory=persist_directory, embedding_function=emb
 retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 llm = ChatCohere(model="command-r-08-2024", cohere_api_key=api_key, temperature=0.3)
 
-# --- DB CONFIG (single source of truth) ---
 _MONGO_URI       = os.getenv("MONGO_URI")
 _DB_NAME         = "alzheimer_app"
 _COLLECTION_NAME = "chat_history"
 
-# --- AGENT PERSONA PROMPT ---
 _AGENT_SYSTEM_PROMPT = (
     "أنت مساعد شخصي دافئ ومتعاطف لمريض الزهايمر في مصر. "
     "هدفك هو دعمهم والإجابة على أسئلتهم باستخدام الأدوات المتاحة. "
@@ -38,7 +36,6 @@ _AGENT_SYSTEM_PROMPT = (
     "استخدم الأدوات المتاحة للإجابة على أسئلة المريض."
 )
 
-# --- LANGCHAIN TOOLS ---
 
 @tool
 def personal_memory_search(query: str) -> str:
@@ -64,14 +61,11 @@ def medicine_search(medicine_name: str) -> str:
 
 @tool
 def medicine_ocr_analysis(raw_ocr_text: str) -> str:
-    """حلل نص OCR من صورة الدواء واستخرج اسم الدواء والتعليمات. استخدم هذا الأداة عند معالجة صور الأدوية."""
     try:
-        # Clean OCR text to extract medicine name
         clean_name = " ".join(re.findall(r'[a-zA-Z0-9]{3,}', raw_ocr_text))
         if not clean_name:
             return "معذرة، مقدرش أقرأ اسم الدواء من الصورة."
         
-        # Search for medicine info
         search = DuckDuckGoSearchRun()
         search_result = search.run(f"What is {clean_name} medicine used for?")
         
@@ -81,9 +75,7 @@ def medicine_ocr_analysis(raw_ocr_text: str) -> str:
 
 @tool
 def manage_reminders_tool(patient_id: str, reminder_message: str) -> str:
-    """إضافة تنبيه جديد للمريض. استخدم هذا الأداة عندما يطلب المريض تذكيره بشيء (مثل 'فكرني آخد دوا')."""
     try:
-        # Use LLM to extract task and time from natural language
         extraction_prompt = f"""
         استخرج من الجملة دي: المهمة والوقت.
         الجملة: "{reminder_message}"
@@ -96,26 +88,21 @@ def manage_reminders_tool(patient_id: str, reminder_message: str) -> str:
         
         extraction_response = llm.invoke(extraction_prompt)
         
-        # Parse the LLM response to get task and time
         import json
         try:
             extracted_data = json.loads(extraction_response.content)
             task = extracted_data.get("task", reminder_message)
             time_str = extracted_data.get("time", "")
         except:
-            # Fallback: simple parsing
             task = reminder_message
             time_str = datetime.now().strftime('%H:%M')
         
-        # Convert time string to datetime
         if ":" in time_str:
             today = datetime.now().date()
             remind_time = datetime.combine(today, datetime.strptime(time_str, '%H:%M').time())
         else:
-            # Default to 1 hour from now
             remind_time = datetime.now() + timedelta(hours=1)
         
-        # Create reminder in database
         reminder_data = ReminderCreate(
             patient_id=patient_id,
             task_description=task,
@@ -129,10 +116,8 @@ def manage_reminders_tool(patient_id: str, reminder_message: str) -> str:
     except Exception as e:
         return f"معذرة، مقدرش أضيف التنبيه: {str(e)}"
 
-# --- AGENT SETUP ---
 
 def get_session_history(session_id: str) -> MongoDBChatMessageHistory:
-    """Used internally by RunnableWithMessageHistory to persist chat turns."""
     return MongoDBChatMessageHistory(
         connection_string=_MONGO_URI,
         session_id=session_id,
@@ -140,13 +125,10 @@ def get_session_history(session_id: str) -> MongoDBChatMessageHistory:
         collection_name=_COLLECTION_NAME,
     )
 
-# Simplified approach: Create a tool-based chain instead of complex agent
 def build_chat_chain():
-    """Build a simple chain that can use tools based on context."""
     from langchain_core.runnables import RunnablePassthrough
     from langchain_core.output_parsers import StrOutputParser
     
-    # Create a prompt that includes tool usage instructions
     system_prompt = _AGENT_SYSTEM_PROMPT + "\n\n" + (
         "لديك الأدوات التالية المتاحة:\n"
         "1. البحث في الذكريات الشخصية (للأسئلة عن المريض أو عائلته)\n"
@@ -174,18 +156,14 @@ def build_chat_chain():
     return chain
 
 def get_context_for_input(user_input: str) -> str:
-    """Determine which tool to use based on input and get context."""
     user_input_lower = user_input.lower()
     
-    # Check if it's about reminders
     if any(word in user_input_lower for word in ["فكرني", "تنبيه", "تذكير", " remind", "reminder"]):
         try:
-            # Use the manage_reminders_tool directly
             return "تنبيه: المستخدم يريد إضافة تنبيه جديد"
         except:
             return "تنبيه: طلب إضافة تنبيه جديد"
     
-    # Check if it's about medicine
     elif any(word in user_input_lower for word in ["دواء", "medicine", "علاج", "pill", "tablet"]):
         try:
             search = DuckDuckGoSearchRun()
@@ -194,7 +172,6 @@ def get_context_for_input(user_input: str) -> str:
         except:
             return "معذرة، مقدرش أبحث عن معلومات الدواء."
     
-    # Check if it's about personal information
     elif any(word in user_input_lower for word in ["أنا", "عن", "ذكريات", "عائلتي", "ماضي"]):
         try:
             docs = retriever.invoke(user_input)
@@ -206,7 +183,6 @@ def get_context_for_input(user_input: str) -> str:
         except:
             return "معذرة، حصلت مشكلة في البحث عن المعلومات الشخصية."
     
-    # Check if it contains OCR text
     elif "ocr" in user_input_lower or len(re.findall(r'[a-zA-Z0-9]{3,}', user_input)) > 2:
         try:
             clean_name = " ".join(re.findall(r'[a-zA-Z0-9]{3,}', user_input))
@@ -219,13 +195,10 @@ def get_context_for_input(user_input: str) -> str:
         except:
             return "معذرة، حصلت مشكلة في تحليل النص."
     
-    # Default: no specific context
     return ""
 
-# Create global chain
 chat_chain = build_chat_chain()
 
-# Wrap with memory
 chain_with_memory = RunnableWithMessageHistory(
     chat_chain,
     get_session_history,
@@ -234,10 +207,6 @@ chain_with_memory = RunnableWithMessageHistory(
 )
 
 def get_patient_history(patient_id: str) -> list[dict]:
-    """
-    Fetches chat history for a patient using LangChain's MongoDBChatMessageHistory,
-    then converts the message objects into {sender, text, timestamp} dicts.
-    """
     history_obj = get_session_history(patient_id.strip())
     messages = history_obj.messages
 

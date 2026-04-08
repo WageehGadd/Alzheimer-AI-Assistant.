@@ -3,6 +3,7 @@ import requests
 import os
 import base64
 from pathlib import Path
+from streamlit_mic_recorder import mic_recorder
 
 API_BASE_URL = "http://127.0.0.1:8000"
 st.set_page_config(page_title="Alzheimer Assistant - Family Portal", layout="wide")
@@ -10,7 +11,6 @@ st.set_page_config(page_title="Alzheimer Assistant - Family Portal", layout="wid
 st.title("🧠 Alzheimer Assistant: Family Dashboard")
 st.markdown("Manage your patient's data, memories, and medication schedules.")
 
-# --- Sidebar: System Status ---
 st.sidebar.header("System Status")
 if st.sidebar.button("Check Backend Connection"):
     try:
@@ -30,14 +30,12 @@ with tab1:
     
     if uploaded_file is not None:
         if st.button("Update Assistant Memory"):
-            # Save file to 'data' folder
             save_path = Path("data") / "patient_info.txt"
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             
             st.success("File uploaded successfully! Now building Vector Store...")
             try:
-                
                 from app.services.rag_builder import build_vector_store
                 build_vector_store()
                 st.success("Memory updated! The assistant now knows the new info. 🚀")
@@ -82,10 +80,9 @@ with tab4:
                 if response.status_code == 200:
                     reminders = response.json()
                     if not reminders:
-                        st.info("لا يوجد تنبيهات قادمة لهذا المريض.")
+                        st.info("")
                     else:
                         for reminder in reminders:
-                            # Convert remind_time to readable format
                             remind_time = reminder.get('remind_time', '')
                             if remind_time:
                                 from datetime import datetime
@@ -96,15 +93,15 @@ with tab4:
                                 
                                 time_str = dt.strftime('%I:%M %p - %d/%m/%Y')
                             else:
-                                time_str = "وقت غير محدد"
+                                time_str = " "
                             
-                            status = "✅ مكتمل" if reminder.get('is_completed', False) else "⏳ قيد الانتظار"
+                            status = " " if reminder.get('is_completed', False) else " "
                             
                             st.markdown(f"""
-                            **{reminder.get('task_description', 'مهمة غير محددة')}**
+                            **{reminder.get('task_description', ' ')}**
                             
-                            📅 الوقت: {time_str}
-                            📊 الحالة: {status}
+                            : {time_str}
+                            : {status}
                             ---
                             """)
                 else:
@@ -113,14 +110,14 @@ with tab4:
                 st.error(f"Connection Error: {e}")
     
     st.markdown("---")
-    st.subheader("إنشاء تنبيه جديد")
-    st.write("يمكنك أيضاً إنشاء تنبيه جديد يدوياً:")
+    st.subheader(" ")
+    st.write(" ")
     
     with st.form("new_reminder_form"):
-        new_task = st.text_input("المهمة:", placeholder="مثال: تناول دواء الضغط")
-        new_time = st.time_input("الوقت:")
+        new_task = st.text_input("", placeholder="")
+        new_time = st.time_input("")
         
-        if st.form_submit_button("إضافة تنبيه"):
+        if st.form_submit_button(" "):
             if new_task and new_time:
                 try:
                     from datetime import datetime, date
@@ -129,7 +126,7 @@ with tab4:
                     
                     reminder_data = {
                         "patient_id": patient_id,
-                        "message": f"{new_task} الساعة {new_time.strftime('%I:%M %p')}"
+                        "message": f"{new_task} {new_time.strftime('%I:%M %p')}"
                     }
                     
                     response = requests.post(
@@ -138,49 +135,91 @@ with tab4:
                     )
                     
                     if response.status_code == 200:
-                        st.success("تم إضافة التنبيه بنجاح! ✅")
+                        st.success(" ")
                         st.rerun()
                     else:
-                        st.error("فشل في إضافة التنبيه")
+                        st.error("")
                 except Exception as e:
                     st.error(f"Error: {e}")
             else:
-                st.warning("يرجى إدخال المهمة والوقت")
+                st.warning(" ")
 
 with tab5:
-    st.header("🎤 المحادثة الصوتية")
-    st.write("تحدث مع المساعد بصوتك الطبيعي!")
+    st.header(" ")
+    st.write(" ")
     
-    patient_id = st.text_input("رقم المريض:", value="101", key="voice_patient_id")
+    patient_id = st.text_input("", value="101", key="voice_patient_id")
     
-    # Voice recording section
-    st.subheader("🎙️ تسجيل صوتي")
+    st.subheader(" ")
+    audio_bytes = mic_recorder(
+        start_prompt="Click to record",
+        stop_prompt="Stop recording",
+        just_once=False,
+        use_container_width=False,
+        callback=None,
+        args=None,
+        kwargs=None,
+        key="mic_recorder"
+    )
     
-    # Audio file upload (fallback if mic recorder doesn't work)
     audio_file = st.file_uploader(
-        "ارفع ملف صوتي (WAV, MP3, M4A)", 
+        "Or upload audio file (WAV, MP3, M4A)", 
         type=['wav', 'mp3', 'm4a'],
         key="voice_file_upload"
     )
     
-    # Settings
     col1, col2 = st.columns(2)
     with col1:
-        include_audio = st.checkbox("تضمين استجابة صوتية", value=True, key="include_audio_response")
+        include_audio = st.checkbox("", value=True, key="include_audio_response")
     with col2:
         selected_voice = st.selectbox(
-            "الصوت المستخدم:",
+            " ",
             ["ar-EG-SalmaNeural", "ar-EG-ShakirNeural"],
             index=0,
             key="voice_selection"
         )
     
-    # Process audio file
-    if audio_file is not None:
-        if st.button("🎤 إرسال التسجيل", key="send_voice"):
-            with st.spinner("جاري معالجة الصوت..."):
+    if audio_bytes is not None:
+        if st.button("", key="send_mic"):
+            with st.spinner("Processing audio..."):
                 try:
-                    # Send audio to backend
+                    files = {"audio_file": ("recording.wav", audio_bytes, "audio/wav")}
+                    data = {
+                        "patient_id": patient_id,
+                        "include_audio_response": include_audio
+                    }
+                    
+                    response = requests.post(
+                        f"{API_BASE_URL}/chat/voice",
+                        files=files,
+                        data=data
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        
+                        st.success("")
+                        st.markdown(f"**You said:** {result['transcription']}")
+                        
+                        response_data = result['response']
+                        st.markdown(f"**Assistant response:** {response_data['response_message']}")
+                        
+                        if response_data.get('audio_response') and include_audio:
+                            audio_base64 = response_data['audio_response']
+                            audio_bytes_response = base64.b64decode(audio_base64)
+                            st.audio(audio_bytes_response, format='audio/mp3')
+                            st.success("")
+                        
+                    else:
+                        st.error(f"Processing failed: {response.text}")
+                        
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
+    
+    if audio_file is not None:
+        if st.button("", key="send_file"):
+            with st.spinner("Processing audio..."):
+                try:
                     files = {"audio_file": (audio_file.name, audio_file.read(), audio_file.type)}
                     data = {
                         "patient_id": patient_id,
@@ -197,25 +236,25 @@ with tab5:
                         result = response.json()
                         
                         # Show transcription
-                        st.success("✅ تم استلام الصوت بنجاح!")
-                        st.markdown(f"**ما قلته:** {result['transcription']}")
+                        st.success("🎤 Audio received successfully!")
+                        st.markdown(f"**You said:** {result['transcription']}")
                         
                         # Show response
                         response_data = result['response']
-                        st.markdown(f"**رد المساعد:** {response_data['response_message']}")
+                        st.markdown(f"**Assistant response:** {response_data['response_message']}")
                         
                         # Play audio response if available
                         if response_data.get('audio_response') and include_audio:
                             audio_base64 = response_data['audio_response']
-                            audio_bytes = base64.b64decode(audio_base64)
-                            st.audio(audio_bytes, format='audio/mp3')
-                            st.success("🔊 جاري تشغيل الاستجابة الصوتية")
+                            audio_bytes_response = base64.b64decode(audio_base64)
+                            st.audio(audio_bytes_response, format='audio/mp3')
+                            st.success("🔊 Playing audio response")
                         
                     else:
-                        st.error(f"فشل في المعالجة: {response.text}")
+                        st.error(f"Processing failed: {response.text}")
                         
                 except Exception as e:
-                    st.error(f"خطأ في الاتصال: {e}")
+                    st.error(f"Connection error: {e}")
     
     st.markdown("---")
     

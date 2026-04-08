@@ -4,7 +4,6 @@ import io
 from pathlib import Path
 from typing import Optional
 
-# Try to import audio libraries with fallbacks
 try:
     import whisper
     WHISPER_AVAILABLE = True
@@ -28,11 +27,9 @@ except ImportError:
 
 from fastapi import HTTPException
 
-# Load Whisper model once (lazy loading)
 _whisper_model = None
 
 def get_whisper_model():
-    """Get or load Whisper model."""
     global _whisper_model
     if _whisper_model is None and WHISPER_AVAILABLE:
         print("Loading Whisper model...")
@@ -41,34 +38,21 @@ def get_whisper_model():
     return _whisper_model
 
 async def transcribe_audio(audio_file: bytes, file_extension: str = ".wav") -> str:
-    """
-    Transcribe audio file using OpenAI Whisper.
-    
-    Args:
-        audio_file: Audio file bytes
-        file_extension: File extension (.wav, .mp3, etc.)
-    
-    Returns:
-        Transcribed text in Egyptian Arabic
-    """
     if not WHISPER_AVAILABLE:
         return "معذرة، نظام تحويل الصوت للنص غير متاح حالياً."
     
     try:
-        # Save audio to temporary file
         with tempfile.NamedTemporaryFile(suffix=file_extension, delete=False) as temp_file:
             temp_file.write(audio_file)
             temp_file_path = temp_file.name
         
         try:
-            # Convert to WAV if needed (Whisper works best with WAV)
             if PYDUB_AVAILABLE and file_extension.lower() != ".wav":
                 audio = AudioSegment.from_file(temp_file_path)
                 wav_path = temp_file_path.replace(file_extension, ".wav")
                 audio.export(wav_path, format="wav")
                 temp_file_path = wav_path
             
-            # Transcribe using Whisper
             model = get_whisper_model()
             if model is None:
                 return "معذرة، نموذج Whisper غير متاح."
@@ -77,14 +61,12 @@ async def transcribe_audio(audio_file: bytes, file_extension: str = ".wav") -> s
             
             transcribed_text = result["text"].strip()
             
-            # Clean and validate the transcription
             if not transcribed_text:
                 return "معذرة، مقدرش اسمع حاجة واضحة."
             
             return transcribed_text
             
         finally:
-            # Clean up temporary files
             try:
                 os.unlink(temp_file_path)
                 if PYDUB_AVAILABLE and file_extension.lower() != ".wav" and os.path.exists(temp_file_path.replace(file_extension, ".wav")):
@@ -97,44 +79,34 @@ async def transcribe_audio(audio_file: bytes, file_extension: str = ".wav") -> s
         raise HTTPException(status_code=500, detail=f"فشل في تحويل الصوت لنص: {str(e)}")
 
 async def synthesize_speech(text: str, voice: str = "ar-EG-SalmaNeural") -> bytes:
-    """
-    Convert text to speech using Edge TTS.
-    
-    Args:
-        text: Text to synthesize (Egyptian Arabic)
-        voice: Voice model to use
-    
-    Returns:
-        Audio file bytes (MP3 format)
-    """
     if not EDGE_TTS_AVAILABLE:
-        raise HTTPException(status_code=500, detail="نظام تحويل النص لصوت غير متاح حالياً.")
+        raise HTTPException(status_code=500, detail="Voice to text system not available.")
     
     try:
-        # Initialize Edge TTS
         communicate = edge_tts.Communicate(text, voice)
         
-        # Generate audio to bytes directly
-        audio_data = await communicate.stream()
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+            temp_path = temp_file.name
         
-        # Collect all audio data
-        audio_bytes = b""
-        async for chunk in audio_data:
-            audio_bytes += chunk
+        await communicate.save(temp_path)
+        
+        with open(temp_path, 'rb') as f:
+            audio_bytes = f.read()
+        
+        os.unlink(temp_path)
         
         return audio_bytes
             
     except Exception as e:
         print(f"[TTS Error]: {e}")
-        raise HTTPException(status_code=500, detail=f"فشل في تحويل النص لصوت: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to convert text to speech: {str(e)}")
 
-def get_available_voices():
-    """Get list of available Arabic voices."""
+async def get_available_voices():
     if not EDGE_TTS_AVAILABLE:
         return []
     
     try:
-        voices = edge_tts.list_voices()
+        voices = await edge_tts.list_voices()
         arabic_voices = [
             {
                 "name": v["ShortName"],
@@ -151,66 +123,38 @@ def get_available_voices():
         return []
 
 def validate_audio_file(audio_bytes: bytes, max_size_mb: int = 25) -> bool:
-    """
-    Validate audio file size and format.
-    
-    Args:
-        audio_bytes: Audio file bytes
-        max_size_mb: Maximum file size in MB
-    
-    Returns:
-        True if valid, False otherwise
-    """
-    # Check file size
     size_mb = len(audio_bytes) / (1024 * 1024)
     if size_mb > max_size_mb:
         return False
     
-    # Basic validation - check if it's a valid audio file
     if PYDUB_AVAILABLE:
         try:
-            # Try to read with pydub
             with io.BytesIO(audio_bytes) as audio_io:
                 AudioSegment.from_file(audio_io)
             return True
         except:
             return False
     else:
-        # Fallback: just check if it's not empty
         return len(audio_bytes) > 0
 
 def preprocess_audio(audio_bytes: bytes) -> bytes:
-    """
-    Preprocess audio for better transcription quality.
-    
-    Args:
-        audio_bytes: Original audio bytes
-    
-    Returns:
-        Processed audio bytes
-    """
     if not PYDUB_AVAILABLE:
-        return audio_bytes  # Return original if pydub not available
+        return audio_bytes
     
     try:
-        # Load audio
         audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
         
-        # Normalize audio (adjust volume)
         audio = audio.normalize()
         
-        # Convert to mono (better for STT)
         if audio.channels > 1:
             audio = audio.set_channels(1)
         
-        # Set sample rate to 16kHz (optimal for Whisper)
         audio = audio.set_frame_rate(16000)
         
-        # Export to bytes
         output = io.BytesIO()
         audio.export(output, format="wav", parameters=["-ar", "16000"])
         return output.getvalue()
         
     except Exception as e:
         print(f"[Audio Preprocessing Error]: {e}")
-        return audio_bytes  # Return original if preprocessing fails
+        return audio_bytes

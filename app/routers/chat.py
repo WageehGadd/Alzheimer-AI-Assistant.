@@ -7,8 +7,8 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from app.services.chat_agent import (
     generate_chat_response,
     search_medicine_online,
-    get_patient_history,        # ← new import
-    medicine_ocr_analysis,       # ← new import
+    get_patient_history,
+    medicine_ocr_analysis,
 )
 from app.services.ocr_service import extract_text_from_image
 from app.services.voice_service import transcribe_audio, synthesize_speech
@@ -20,14 +20,12 @@ router = APIRouter()
 @router.post("/chat", response_model=ChatMessageResponse)
 async def chat(request: ChatRequest):
     try:
-        # If OCR text is provided, use the medicine OCR analysis
         if request.raw_ocr_text:
             message_with_ocr = f"المريض كتب: {request.message}\n\nنص OCR من صورة الدواء: {request.raw_ocr_text}"
             response = generate_chat_response(request.patient_id, message_with_ocr)
         else:
             response = generate_chat_response(request.patient_id, request.message)
         
-        # Generate audio response if requested
         if request.include_audio_response and response.response_message:
             try:
                 audio_bytes = await synthesize_speech(response.response_message)
@@ -35,7 +33,6 @@ async def chat(request: ChatRequest):
                 response.audio_response = audio_base64
             except Exception as e:
                 print(f"[TTS Error in chat]: {e}")
-                # Continue without audio if TTS fails
         
         return response
     except Exception as e:
@@ -48,27 +45,20 @@ async def chat_with_voice(
     audio_file: UploadFile = File(...),
     include_audio_response: bool = Form(True)
 ):
-    """
-    Chat endpoint that accepts audio input and returns text response with optional audio.
-    """
     try:
-        # Read and validate audio file
         audio_bytes = await audio_file.read()
         
         if len(audio_bytes) == 0:
             raise HTTPException(status_code=400, detail="ملف الصوت فارغ")
         
-        # Transcribe audio to text
         file_extension = ""
         if audio_file.filename:
             file_extension = Path(audio_file.filename).suffix.lower()
         
         transcription = await transcribe_audio(audio_bytes, file_extension)
         
-        # Generate chat response using transcribed text
         response = generate_chat_response(patient_id, transcription)
         
-        # Generate audio response if requested
         if include_audio_response and response.response_message:
             try:
                 audio_bytes = await synthesize_speech(response.response_message)
@@ -76,7 +66,6 @@ async def chat_with_voice(
                 response.audio_response = audio_base64
             except Exception as e:
                 print(f"[TTS Error in voice chat]: {e}")
-                # Continue without audio if TTS fails
         
         return {
             "transcription": transcription,
@@ -105,7 +94,6 @@ async def scan_medicine(
         if not raw_text or len(raw_text.strip()) < 2:
             return {"status": "warning", "message": "Image too blurry."}
 
-        # Use the new agent with OCR analysis tool
         ai_analysis = generate_chat_response(
             patient_id, 
             f"حلل نص الدواء ده: {raw_text}"
@@ -128,13 +116,7 @@ async def scan_medicine(
 
 @router.get("/chat/history/{patient_id}")
 async def get_chat_history(patient_id: str):
-    """
-    Returns the last N chat messages for a patient.
-    Uses MongoDBChatMessageHistory (same writer as the chat chain)
-    so there is no schema mismatch.
-    """
     try:
-        
         messages = get_patient_history(patient_id)
         return messages
     except Exception as e:
