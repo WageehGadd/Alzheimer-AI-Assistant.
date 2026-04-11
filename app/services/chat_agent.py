@@ -61,6 +61,7 @@ def medicine_search(medicine_name: str) -> str:
 
 @tool
 def medicine_ocr_analysis(raw_ocr_text: str) -> str:
+    """Analyze OCR text from medicine images and extract drug information."""
     try:
         clean_name = " ".join(re.findall(r'[a-zA-Z0-9]{3,}', raw_ocr_text))
         if not clean_name:
@@ -75,6 +76,7 @@ def medicine_ocr_analysis(raw_ocr_text: str) -> str:
 
 @tool
 def manage_reminders_tool(patient_id: str, reminder_message: str) -> str:
+    """Create reminders from natural language messages."""
     try:
         extraction_prompt = f"""
         استخرج من الجملة دي: المهمة والوقت.

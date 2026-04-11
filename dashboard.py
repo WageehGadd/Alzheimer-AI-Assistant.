@@ -12,7 +12,7 @@ st.title("🧠 Alzheimer Assistant: Family Dashboard")
 st.markdown("Manage your patient's data, memories, and medication schedules.")
 
 st.sidebar.header("System Status")
-if st.sidebar.button("Check Backend Connection"):
+if st.sidebar.button("Check Backend Connection", key="check_connection"):
     try:
         response = requests.get(f"{API_BASE_URL}/docs")
         if response.status_code == 200:
@@ -26,10 +26,10 @@ with tab1:
     st.header("Upload New Knowledge")
     st.write("Upload text files (.txt) containing family stories or schedules to update the assistant's memory.")
     
-    uploaded_file = st.file_uploader("Choose a file", type=['txt'])
+    uploaded_file = st.file_uploader("Choose a file", type=['txt'], key="file_uploader")
     
     if uploaded_file is not None:
-        if st.button("Update Assistant Memory"):
+        if st.button("Update Assistant Memory", key="update_memory"):
             save_path = Path("data") / "patient_info.txt"
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
@@ -49,9 +49,9 @@ with tab2:
 
 with tab3:
     st.header("💬 Recent Conversations")
-    patient_id = st.text_input("Enter Patient ID:", value="101")
+    patient_id = st.text_input("Enter Patient ID:", value="101", key="chat_patient_id")
     
-    if st.button("Fetch History"):
+    if st.button("Fetch History", key="fetch_history"):
         with st.spinner("Fetching logs from MongoDB..."):
             try:
                 response = requests.get(f"{API_BASE_URL}/chat/history/{patient_id}")
@@ -71,9 +71,9 @@ with tab3:
 
 with tab4:
     st.header("⏰ التنبيهات القادمة")
-    patient_id = st.text_input("Enter Patient ID:", value="101")
+    patient_id = st.text_input("Enter Patient ID:", value="101", key="reminders_patient_id")
     
-    if st.button("Fetch Reminders"):
+    if st.button("Fetch Reminders", key="fetch_reminders"):
         with st.spinner("Fetching reminders from MongoDB..."):
             try:
                 response = requests.get(f"{API_BASE_URL}/reminders/{patient_id}")
@@ -110,14 +110,14 @@ with tab4:
                 st.error(f"Connection Error: {e}")
     
     st.markdown("---")
-    st.subheader(" ")
-    st.write(" ")
+    st.subheader("إنشاء تنبيه جديد")
+    st.write("يمكنك أيضاً إنشاء تنبيه جديد يدوياً:")
     
     with st.form("new_reminder_form"):
-        new_task = st.text_input("", placeholder="")
-        new_time = st.time_input("")
+        new_task = st.text_input("المهمة:", placeholder="مثال: تناول دواء الضغط", key="new_task")
+        new_time = st.time_input("الوقت:", key="new_time")
         
-        if st.form_submit_button(" "):
+        if st.form_submit_button("إضافة تنبيه", key="add_reminder"):
             if new_task and new_time:
                 try:
                     from datetime import datetime, date
@@ -145,12 +145,12 @@ with tab4:
                 st.warning(" ")
 
 with tab5:
-    st.header(" ")
-    st.write(" ")
+    st.header("🎤 المحادثة الصوتية")
+    st.write("تحدث مع المساعد بصوتك الطبيعي!")
     
-    patient_id = st.text_input("", value="101", key="voice_patient_id")
+    patient_id = st.text_input("رقم المريض:", value="101", key="voice_patient_id")
     
-    st.subheader(" ")
+    st.subheader("🎙️ تسجيل صوتي")
     audio_bytes = mic_recorder(
         start_prompt="Click to record",
         stop_prompt="Stop recording",
@@ -170,17 +170,17 @@ with tab5:
     
     col1, col2 = st.columns(2)
     with col1:
-        include_audio = st.checkbox("", value=True, key="include_audio_response")
+        include_audio = st.checkbox("تضمين استجابة صوتية", value=True, key="include_audio_response")
     with col2:
         selected_voice = st.selectbox(
-            " ",
+            "الصوت المستخدم:",
             ["ar-EG-SalmaNeural", "ar-EG-ShakirNeural"],
             index=0,
             key="voice_selection"
         )
     
     if audio_bytes is not None:
-        if st.button("", key="send_mic"):
+        if st.button("🎤 Send Recording", key="send_mic"):
             with st.spinner("Processing audio..."):
                 try:
                     files = {"audio_file": ("recording.wav", audio_bytes, "audio/wav")}
@@ -217,7 +217,7 @@ with tab5:
                     st.error(f"Connection error: {e}")
     
     if audio_file is not None:
-        if st.button("", key="send_file"):
+        if st.button("🎤 Send File", key="send_file"):
             with st.spinner("Processing audio..."):
                 try:
                     files = {"audio_file": (audio_file.name, audio_file.read(), audio_file.type)}
